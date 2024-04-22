@@ -393,10 +393,9 @@ int main(int argc, char **argv)
       size_t suffixlen = strlen(fmt->suffix);
       size_t reffilelen = infilelen;
       char *reffile = malloc(PATH_MAX);
-      sprintf(reffile, "%s", infile);
       if (output_path) {
-        /* if output path is specified, prepare reffile */
-        const char *lastpath = strrchr(reffile, '/');
+        /* if output_path is specified define reffile accordingly */
+        const char *lastpath = strrchr(infile, '/');
         if (lastpath != NULL) {
           sprintf(reffile, "%s/%s", output_path, lastpath + 1);
         }
@@ -404,6 +403,9 @@ int main(int argc, char **argv)
             sprintf(reffile, "%s", output_path);
         }
         reffilelen = strlen(reffile);
+      }
+      else {
+          sprintf(reffile, "%s", infile);
       }
       if (opt_uncompress) {
         /* check suffix */
