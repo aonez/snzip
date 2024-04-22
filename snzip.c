@@ -227,6 +227,7 @@ int main(int argc, char **argv)
   int block_size = 0;
   size_t rsize = 0;
   size_t wsize = 0;
+  const char *output_path = NULL;
   const char *format_name = NULL;
   stream_format_t *fmt = &DEFAULT_FORMAT;
 
@@ -249,7 +250,7 @@ int main(int argc, char **argv)
     opt_keep = TRUE;
   }
 
-  while ((opt = getopt(argc, argv, "cdkt:hs:b:B:R:W:T")) != -1) {
+  while ((opt = getopt(argc, argv, "cdko:t:hs:b:B:R:W:T")) != -1) {
     char *endptr;
 
     switch (opt) {
@@ -261,6 +262,10 @@ int main(int argc, char **argv)
       opt_uncompress = TRUE;
       break;
     case 'k':
+      opt_keep = TRUE;
+      break;
+    case 'o':
+      output_path = optarg;
       opt_keep = TRUE;
       break;
     case 't':
@@ -386,29 +391,43 @@ int main(int argc, char **argv)
       outfp = stdout;
     } else {
       size_t suffixlen = strlen(fmt->suffix);
+      size_t reffilelen = infilelen;
+      char *reffile = malloc(PATH_MAX);
+      sprintf(reffile, "%s", infile);
+      if (output_path) {
+        /* if output path is specified, prepare reffile */
+        const char *lastpath = strrchr(reffile, '/');
+        if (lastpath != NULL) {
+          sprintf(reffile, "%s/%s", output_path, lastpath + 1);
+        }
+        else {
+            sprintf(reffile, "%s", output_path);
+        }
+        reffilelen = strlen(reffile);
+      }
       if (opt_uncompress) {
         /* check suffix */
-        const char *suffix = strrchr(infile, '.');
+        const char *suffix = strrchr(reffile, '.');
         int remove_suffix = (suffix != NULL && strcmp(suffix + 1, fmt->suffix) == 0);
-        size_t new_size = infilelen + (remove_suffix ? (- suffixlen) : 4);
+        size_t new_size = reffilelen + (remove_suffix ? (- suffixlen) : 4);
         if (new_size >= sizeof(outfile)) {
-          print_error("%s has too long file name.\n", infile);
+          print_error("%s has too long file name.\n", reffile);
           exit(1);
         }
         if (remove_suffix) {
-          memcpy(outfile, infile, infilelen - suffixlen - 1);
-          outfile[infilelen - suffixlen - 1] = '\0';
+          memcpy(outfile, reffile, reffilelen - suffixlen - 1);
+          outfile[reffilelen - suffixlen - 1] = '\0';
         } else {
           fprintf(stderr, "%s: Can't guess original name for %s -- using %s.out\n",
-                  progname, infile, infile);
-          snprintf(outfile, sizeof(outfile), "%s.out", infile);
+                  progname, reffile, reffile);
+          snprintf(outfile, sizeof(outfile), "%s.out", reffile);
         }
       } else {
-        if (infilelen + suffixlen + 2 >= sizeof(outfile)) {
-          print_error("%s has too long file name.\n", infile);
+        if (reffilelen + suffixlen + 2 >= sizeof(outfile)) {
+          print_error("%s has too long file name.\n", reffile);
           exit(1);
         }
-        sprintf(outfile, "%s.%s", infile, fmt->suffix);
+        sprintf(outfile, "%s.%s", reffile, fmt->suffix);
       }
       outfp = fopen(outfile, "wb" OPTIMIZE_SEQUENTIAL);
       if (outfp == NULL) {
@@ -540,6 +559,7 @@ static void show_usage(const char *progname, int exit_code)
           "   -c       output to standard output, keep original files unchanged\n"
           "   -d       decompress\n"
           "   -k       keep (don't delete) input files\n"
+          "   -o path  output to the specified path, keep original files unchanged\n"
           "   -t name  file format name. see below. The default format is %s.\n"
           "   -h       give this help\n"
           "\n"
