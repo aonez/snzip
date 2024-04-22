@@ -392,22 +392,46 @@ int main(int argc, char **argv)
     } else {
       size_t suffixlen = strlen(fmt->suffix);
       size_t reffilelen = infilelen;
-      char *reffile = malloc(PATH_MAX);
+      char reffile[PATH_MAX];
+      int usingCustomName = 0;
       if (output_path) {
         /* if output_path is specified define reffile accordingly */
-        const char *lastpath = strrchr(infile, '/');
-        if (lastpath != NULL) {
-          sprintf(reffile, "%s/%s", output_path, lastpath + 1);
+        size_t output_pathlen = strlen(output_path);
+        if (output_pathlen >= sizeof(reffile)) {
+          print_error("%s has too long file name.\n", output_path);
+          exit(1);
+        }
+        struct stat statbuf;
+        if ((stat(output_path, &statbuf) == 0) && (S_ISDIR(statbuf.st_mode))) {
+          const char *lastpath = strrchr(infile, '/');
+          if (lastpath != NULL) {
+            if (output_pathlen + strlen(lastpath) + 2 >= sizeof(reffile)) {
+              print_error("%s/%s has too long file name.\n", output_path, lastpath + 1);
+              exit(1);
+            }
+            sprintf(reffile, "%s/%s", output_path, lastpath + 1);
+          }
+          else {
+            if (output_pathlen + infilelen + 1 >= sizeof(reffile)) {
+              print_error("%s/%s has too long file name.\n", output_path, infile);
+              exit(1);
+            }
+            sprintf(reffile, "%s/%s", output_path, infile);
+          }
         }
         else {
-            sprintf(reffile, "%s", output_path);
+          usingCustomName = 1;
+          sprintf(reffile, "%s", output_path);
         }
         reffilelen = strlen(reffile);
       }
       else {
           sprintf(reffile, "%s", infile);
       }
-      if (opt_uncompress) {
+      if (usingCustomName) {
+        sprintf(outfile, "%s", reffile);
+      }
+      else if (opt_uncompress) {
         /* check suffix */
         const char *suffix = strrchr(reffile, '.');
         int remove_suffix = (suffix != NULL && strcmp(suffix + 1, fmt->suffix) == 0);
